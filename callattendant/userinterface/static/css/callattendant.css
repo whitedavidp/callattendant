@@ -98,3 +98,13 @@ Pagination info numbers in above
     padding: .1em .25em;
     font-size: 125%;
 }
+
+/*
+Override badge colors
+*/
+.badge-primary {
+   background-color: green
+}
+.badge-info {
+   background-color: orange
+}
