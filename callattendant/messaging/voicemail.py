@@ -140,16 +140,16 @@ class VoiceMail:
             if not success:
                 break
             print(">>Caller pressed: {}".format(digit))
-            if digit == '1':
+            if digit == '1' and '1' in supported_keys:
                 self.record_message(call_no, caller, self.config["VOICE_MAIL_LEAVE_MESSAGE_FILE"])
                 break
-            elif digit == '0':
+            elif digit == '0' and '0' in supported_keys:
                 # Save caller to whitelist
                 self.whitelist.add_caller(caller, "Caller pressed 0")
                 self.modem.play_audio(voice_mail_callback_file)
                 self.modem.play_audio(goodbye_file)
                 break
-            elif digit == '#':
+            elif digit == '#' and '#' in supported_keys:
                 self.modem.play_audio(goodbye_file)
                 break
             else:
