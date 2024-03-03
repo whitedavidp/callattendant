@@ -1,139 +1,142 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+#
+#  callscreener.py
+#
+#  Copyright 2018  <pi@rhombus1>
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included in all
+#  copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#  SOFTWARE.
 
-# This code was inspired by and contains code snippets from Pradeep Singh:
-# https://iotbytes.wordpress.com/incoming-call-details-logger-with-raspberry-pi/
-# https://github.com/pradeesi/Incoming_Call_Detail_Logger
-# ==============================================================================
 
-from datetime import datetime
-from pprint import pprint
-from screening.query_db import query_db
+import re
+import sys
+
+from screening.blacklist import Blacklist
+from screening.whitelist import Whitelist
+from screening.nomorobo import NomoroboService
+import yaml
 
 
-class CallLogger(object):
+class CallScreener(object):
+    """The CallScreener provides blacklist and whitelist checks"""
 
-    def log_caller(self, callerid, action="Screened", reason=""):
-        """
-        Logs the given caller into the Call Log table.
-            :param caller: a dict object containing the caller ID info
-            :return: The CallLogID of the new record
-        """
-        # If the date is only 4 characters long, append the current year (for leap years)
-        caller_date = callerid['DATE']
-        if (len(caller_date) == 4):
-            caller_date += str(datetime.now().year)
+    def is_whitelisted(self, callerid):
+        """Returns true if the number is on a whitelist"""
+        number = callerid['NMBR']
+        name = callerid["NAME"]
+        try:
+            is_whitelisted, reason = self._whitelist.check_number(callerid['NMBR'])
+            if is_whitelisted:
+                return True, reason
+            else:
+                print(">> Checking permitted patterns...")
+                patternlist = self.config.get("CALLERID_PATTERNS")["permitnames"]
+                for key in patternlist.keys():
+                    match = re.search(key, name, re.IGNORECASE)
+                    if match:
+                        reason = patternlist[key]
+                        print(reason)
+                        return True, reason
 
-        # Add a row
-        sql = """INSERT INTO CallLog(
-            Name,
-            Number,
-            Action,
-            Reason,
-            Date,
-            Time,
-            SystemDateTime)
-            VALUES(?,?,?,?,?,?,?)"""
-        arguments = [callerid['NAME'],
-                     callerid['NMBR'],
-                     action,
-                     reason,
-                     datetime.strptime(caller_date, '%m%d%Y').strftime('%d-%b'),
-                     datetime.strptime(callerid['TIME'], '%H%M').strftime('%I:%M %p'),
-                     (datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:19])]
+                patternlist = self.config["CALLERID_PATTERNS"]["permitnumbers"]
+                for key in patternlist.keys():
+                    match = re.search(key, number)
+                    if match:
+                        reason = patternlist[key]
+                        print(reason)
+                        return True, reason
+                return False, "Not found"
+        finally:
+            sys.stdout.flush()
 
-        self.db.execute(sql, arguments)
-        self.db.commit()
+    def is_blacklisted(self, callerid):
+        """Returns true if the number is on a blacklist"""
+        number = callerid['NMBR']
+        name = callerid["NAME"]
+        try:
+            is_blacklisted, reason = self._blacklist.check_number(number)
+            if is_blacklisted:
+                return True, reason
+            else:
+                print(">> Checking blocked patterns...")
+                patternlist = self.config["CALLERID_PATTERNS"]["blocknames"]
+                for key in patternlist.keys():
+                    match = re.search(key, name, re.IGNORECASE)
+                    if match:
+                        reason = patternlist[key]
+                        print(reason)
+                        return True, reason
 
-        # Return the CallLogID
-        query = "select last_insert_rowid()"
-        result = query_db(self.db, query, (), True)
-        call_no = result[0]
+                patternlist = self.config["CALLERID_PATTERNS"]["blocknumbers"]
+                for key in patternlist.keys():
+                    match = re.search(key, number)
+                    if match:
+                        reason = patternlist[key]
+                        print(reason)
+                        return True, reason
 
-        if self.config["DEBUG"]:
-            print("> New call log entry #{}".format(call_no))
-            pprint(arguments)
-        return call_no
+                if self.config.get("BLOCK_SERVICE").upper() == "NOMOROBO":
+                    print(">> Checking nomorobo...")
+                    result = self._nomorobo.lookup_number(number)
+                    if result["spam"]:
+                        reason = "{} with score {}".format(result["reason"], result["score"])
+                        if self.config["DEBUG"]:
+                            print(">>> {}".format(reason))
+                        self.blacklist_caller(callerid, reason)
+                        return True, reason
+                print("Caller has been screened")
+                return False, "Not found"
+        finally:
+            sys.stdout.flush()
+
+    def whitelist_caller(self, callerid, reason):
+        self._whitelist.add_caller(callerid, reason)
+
+    def blacklist_caller(self, callerid, reason):
+        self._blacklist.add_caller(callerid, reason)
 
     def __init__(self, db, config):
-        """ Initializes the CallLogger object and creates the
-            CallLog table if it doesn't exist
-        """
-        self.db = db
+        self._db = db
         self.config = config
-
         if self.config["DEBUG"]:
-            print("Initializing CallLogger")
+            print("Initializing CallScreener")
 
-        # Create the Call_History table if it does not exist
-        sql = """CREATE TABLE IF NOT EXISTS CallLog (
-            CallLogID INTEGER PRIMARY KEY AUTOINCREMENT,
-            Name TEXT,
-            Number TEXT,
-            Action TEXT,
-            Reason TEXT,
-            Date TEXT,
-            Time TEXT,
-            SystemDateTime TEXT);"""
-        curs = self.db.cursor()
-        curs.executescript(sql)
+        self._blacklist = Blacklist(db, config)
+        self._whitelist = Whitelist(db, config)
+        # Set blocking threshold to 1 to filter nuisance calls
+        self._nomorobo = NomoroboService(config["BLOCK_SERVICE_THRESHOLD"])
 
+        # Load number and name patterns into config vars
         try:
-            # Early versions of callattendant (<= v0.3.1) do not contain
-            # an Action column or Reason column. This hack/code attempts
-            # to add the columns if they don't exit.
-            sql = """SELECT COUNT(*) AS CNTREC
-                FROM pragma_table_info('CallLog')
-                WHERE name='Action'"""
-            curs.execute(sql)
-            count = curs.fetchone()[0]
-            if count == 0:
-
-                # Dependencies: ensures tables used in the sql exist
-                from whitelist import Whitelist
-                from blacklist import Blacklist
-                whitelist = Whitelist(db, config)
-                blacklist = Blacklist(db, config)
-
-                print(">> Adding Action column to CallLog table")
-                sql = """ALTER TABLE CallLog ADD COLUMN Action TEXT default null"""
-                curs.executescript(sql)
-
-                print(">> Updating Action column in CallLog table")
-                sql = """UPDATE CallLog
-                    SET `Action`=(select
-                    CASE
-                        WHEN b.PhoneNo is not null then 'Permitted'
-                        WHEN c.PhoneNo is not null then 'Blocked'
-                        ELSE 'Screened'
-                    END actn
-                    FROM CallLog as a
-                    LEFT JOIN Whitelist as b ON a.Number = b.PhoneNo
-                    LEFT JOIN Blacklist as c ON a.Number = c.PhoneNo
-                    WHERE CallLog.CallLogID = a.CallLogID)"""
-                curs.executescript(sql)
-
-                print(">> Adding Reason column to CallLog table")
-                sql = """ALTER TABLE CallLog ADD COLUMN Reason TEXT default null"""
-                curs.executescript(sql)
-
-                print(">> Updating Reason column in CallLog table")
-                sql = """UPDATE CallLog
-                    SET `Reason`=(select
-                    CASE
-                        WHEN b.PhoneNo is not null then b.Reason
-                        WHEN c.PhoneNo is not null then c.Reason
-                        ELSE null
-                    END reason
-                    FROM CallLog as a
-                    LEFT JOIN Whitelist as b ON a.Number = b.PhoneNo
-                    LEFT JOIN Blacklist as c ON a.Number = c.PhoneNo
-                    WHERE CallLog.CallLogID = a.CallLogID)"""
-                curs.executescript(sql)
-
-        except Exception as e:
-            print(e)
-
-        curs.close()
-        self.db.commit()
+            with open(self.config["CALLERID_PATTERNS_FILE"], "r") as file:
+                self.config["CALLERID_PATTERNS"] = yaml.safe_load(file)
+        except FileNotFoundError:
+            print("Callerid patterns file not found")
+            # Load dummy patterns
+            self.config["CALLERID_PATTERNS"] = {'blocknames': {}, 'blocknumbers': {},
+                                                'permitnames': {}, 'permitnumbers': {}}
+        except yaml.YAMLError as e:
+            print("Error loading callerid patterns file")
+            if hasattr(e, 'problem_mark'):
+                mark = e.problem_mark
+                print("Error parsing Yaml file at line {}, column {}.".format(mark.line + 1, mark.column + 1))
+            sys.exit(1)
 
         if self.config["DEBUG"]:
-            print("CallLogger initialized")
+            print("CallScreener initialized")
