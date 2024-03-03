@@ -36,8 +36,8 @@ class CallLogger(object):
                      callerid['NMBR'],
                      action,
                      reason,
-                     datetime.strptime(callerid['DATE'], '%m%d'). strftime('%d-%b'),
-                     datetime.strptime(callerid['TIME'], '%H%M'). strftime('%I:%M %p'),
+                     datetime.strptime(caller_date, '%m%d%Y').strftime('%d-%b'),
+                     datetime.strptime(callerid['TIME'], '%H%M').strftime('%I:%M %p'),
                      (datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:19])]
 
         self.db.execute(sql, arguments)
