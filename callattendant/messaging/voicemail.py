@@ -132,6 +132,9 @@ class VoiceMail:
 
         tries = 0
         wait_secs = 8   # Candidate for configuration
+        
+        supported_keys = ('0', )
+        
         while tries < 3:
             success, digit = self.modem.wait_for_keypress(wait_secs)
             if not success:

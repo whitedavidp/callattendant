@@ -17,6 +17,11 @@ class CallLogger(object):
             :param caller: a dict object containing the caller ID info
             :return: The CallLogID of the new record
         """
+        # If the date is only 4 characters long, append the current year (for leap years)
+        caller_date = callerid['DATE']
+        if (len(caller_date) == 4):
+            caller_date += str(datetime.now().year)
+
         # Add a row
         sql = """INSERT INTO CallLog(
             Name,
