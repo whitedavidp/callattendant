@@ -14,7 +14,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="callattendant",   # Add username when uploading to TestPyPI
-    version="1.6.4",        # Ensure this is in-sync with VERSION in config.py
+    version="1.7.4",        # Ensure this is in-sync with VERSION in config.py
     author="Ted Hess",
     author_email="thess@kitschensync.net",
     description="An automated call attendant and call blocker using a USR5637 or CX930xx modem",
@@ -25,8 +25,9 @@ setuptools.setup(
     include_package_data=True,      # Includes files from MANIFEST.in
     install_requires=[
         "Flask>=3.0.1",
-        "flask-paginate>=0.6.0",
+        "flask-paginate>=2023.10.24",
         "beautifulsoup4>=4.12.3",
+        "requests>=2.31.0",
         "lxml>=5.1.0",
         "bs4>=0.0.2",
         "soupsieve>=2.5",

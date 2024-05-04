@@ -40,6 +40,8 @@ class MQTTIndicatorClient(object):
         if mqtt_client is None:
             # No need to re-init
             mqtt_client = self
+            # Check for callback API version (new in v2)
+            self.has_callback_version = hasattr(mqtt, 'CallbackAPIVersion')
 
             self.server = host
             self.port = port
@@ -52,7 +54,14 @@ class MQTTIndicatorClient(object):
         """
         Publish a message to a topic.
         """
-        client = mqtt.Client()
+        # Changes to the Paho MQTT client API in version 2.0
+        # Even if we don't use callbacks, we need to specify the version
+        if (self.has_callback_version):
+            client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+        else:
+            # Version 1.x compatibility
+            client = mqtt.Client()
+
         if self.username is not None:
             client.username_pw_set(self.username, self.password)
         client.connect(self.server, self.port)

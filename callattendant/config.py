@@ -20,9 +20,8 @@ from werkzeug.utils import import_string
 # and screened callers through to the home phone.
 #
 default_config = {
-    "VERSION": '1.6.4',
+    "VERSION": '1.7.4',
 
-    "ENV": 'production',
     "DEBUG": False,
     "TESTING": False,
 
@@ -41,7 +40,7 @@ default_config = {
 
     "BLOCK_ENABLED": True,
     "BLOCK_SERVICE": "",
-    "BLOCK_SERVICE_THRESHOLD": 0,
+    "BLOCK_SERVICE_THRESHOLD": 2,
 
     "CALLERID_PATTERNS_FILE": 'cid_patterns.yaml',
 
@@ -214,10 +213,6 @@ class Config(dict):
         """
         success = True
 
-        if self["ENV"] not in ("production", "development"):
-            print("* ENV is incorrect: {}".format(self["ENV"]))
-            success = False
-
         if not isinstance(self["DEBUG"], bool):
             print("* DEBUG should be a bool: {}".format(type(self["DEBUG"])))
             success = False
@@ -226,6 +221,13 @@ class Config(dict):
             success = False
         if not isinstance(self["BLOCK_ENABLED"], bool):
             print("* BLOCK_ENABLED should be a bool: {}".format(type(self["BLOCK_ENABLED"])))
+            success = False
+        if self["BLOCK_SERVICE"] not in ("", "NOMOROBO", "SHOULDIANSWER"):
+            print("* BLOCK_SERVICE is invalid: {}".format(self["BLOCK_SERVICE"]))
+            success = False
+        if (not isinstance(self["BLOCK_SERVICE_THRESHOLD"], int) or
+                (self["BLOCK_SERVICE_THRESHOLD"] != 1 and self["BLOCK_SERVICE_THRESHOLD"] != 2)):
+            print("* BLOCK_SERVICE_THRESHOLD should be 1 or 2: {}".format(self["BLOCK_SERVICE_THRESHOLD"]))
             success = False
 
         for mode in self["SCREENING_MODE"]:
@@ -321,7 +323,7 @@ class Config(dict):
         # WARNINGS: they print only; they do not fail validation.
         if "ignore" in self[key]:
             if any(a in self[key] for a in ("greeting", "record_message", "voice_mail")):
-                print("* WARNING: {} contains actions in addition to 'ignore'. They not be used.".format(key))
+                print("* WARNING: {} contains actions in addition to 'ignore'. They will not be used.".format(key))
 
         return True
 
