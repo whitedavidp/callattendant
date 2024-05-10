@@ -94,7 +94,7 @@ The __callattendant__ uses the following hardware:
 - Network access for software installation and optional call screener service.
 - USB port for external modem.
 - A 56K V.92 Data + Fax modem compatible with the **U.S. Robotics USR5637** or any device using a **Conexant CX930xx** modem have been proven effective.
-- [Optional] A GPIO based indicator board or an MQTT server.
+- [Optional] A GPIO based indicator board or an MQTT server. [`MQTT-Client.md`](https://github.com/thess/callattendant/blob/fmsentry/MQTT_Client.md) has implementation notes.
 
 **Note:** Dell Conexant modems such as RD02-D400 are not compatible with the __callattendant__ without a firmware patch.
 A patch may be applied by adding a modem init string in the config file OPTIONAL_MODEM_INIT.

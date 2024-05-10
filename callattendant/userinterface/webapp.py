@@ -51,7 +51,7 @@ from pygments.lexers import PythonLexer
 from pygments.formatters import HtmlFormatter
 
 import yaml
-from screening.query_db import query_db
+from common.utils import query_db, format_phone_no
 from screening.blacklist import Blacklist
 from screening.whitelist import Whitelist
 from screening.nextcall import NextCall
@@ -69,7 +69,7 @@ def before_request():
     """
     Establish a database connection for the current request
     """
-    master_config = current_app.config.get("MASTER_CONFIG")
+    master_config = current_app.config["MASTER_CONFIG"]
     g.conn = sqlite3.connect(master_config.get("DB_FILE"))
     g.conn.row_factory = sqlite3.Row
     g.cur = g.conn.cursor()
@@ -155,7 +155,7 @@ def dashboard():
         recent_calls.append(dict(
             call_no=row[0],
             name=row[1],
-            phone_no=format_phone_no(row[2]),
+            phone_no=format_phone_no(row[2], current_app.config["MASTER_CONFIG"]),
             date=date_time.strftime('%d-%b-%y'),
             time=date_time.strftime('%I:%M %p'),
             action=row[5],
@@ -178,7 +178,7 @@ def dashboard():
     for row in result_set:
         top_permitted.append(dict(
             count=row[0],
-            phone_no=format_phone_no(row[1]),
+            phone_no=format_phone_no(row[1], current_app.config["MASTER_CONFIG"]),
             name=row[2]))
 
     # Get top blocked callers
@@ -193,7 +193,7 @@ def dashboard():
     for row in result_set:
         top_blocked.append(dict(
             count=row[0],
-            phone_no=format_phone_no(row[1]),
+            phone_no=format_phone_no(row[1], current_app.config["MASTER_CONFIG"]),
             name=row[2]))
 
     # Get num calls per day for graphing
@@ -255,7 +255,7 @@ def dashboard():
     nextcall = NextCall(app.config['MASTER_CONFIG'])
     permit_next = nextcall.is_next_call_permitted()
 
-    if not current_app.config.get("MASTER_CONFIG").get("MODEM_ONLINE", True):
+    if not current_app.config["MASTER_CONFIG"].get("MODEM_ONLINE", True):
         flash('The modem is not online. Calls will not be screened or blocked. Check the logs and restart the CallAttendant.')
 
     # Render the resullts
@@ -275,7 +275,7 @@ def dashboard():
 @app.route('/about', methods=['GET'])
 def about():
     # El-cheapo version number display
-    flash('Call Attendant version: ' + current_app.config.get("MASTER_CONFIG").get("VERSION"))
+    flash('Call Attendant version: ' + current_app.config["MASTER_CONFIG"]["VERSION"])
     return redirect(request.referrer, code=303)  # Other
 
 @app.route('/calls', methods=['GET'])
@@ -285,7 +285,6 @@ def calls():
     """
 
     # Get GET request args, if available
-    number = request.args.get('number')
     search_text = request.args.get('search')
     search_type = request.args.get('submit')
 
@@ -339,7 +338,7 @@ def calls():
     calls = []
     for row in result_set:
         number = row[2]
-        phone_no = format_phone_no(number)
+        phone_no = format_phone_no(number, current_app.config["MASTER_CONFIG"])
         # Flask pages use the static folder to get resources.
         # In the static folder we have created a soft-link to the
         # data/messsages folder containing the actual messages.
@@ -422,7 +421,7 @@ def calls_view(call_no):
     caller = {}
     if len(row) > 0:
         number = row[2]
-        phone_no = format_phone_no(number)
+        phone_no = format_phone_no(number, current_app.config["MASTER_CONFIG"])
         # Flask pages use the static folder to get resources.
         # In the static folder we have created a soft-link to the
         # data/messsages folder containing the actual messages.
@@ -522,7 +521,7 @@ def callers_manage(call_no):
         number = record[2]
         caller.update(dict(
             call_no=record[0],
-            phone_no=format_phone_no(number),
+            phone_no=format_phone_no(number, current_app.config["MASTER_CONFIG"]),
             name=record[1],
             whitelisted=record[3],
             blacklisted=record[4],
@@ -564,7 +563,7 @@ def callers_blocked():
     for record in result_set:
         number = record[0]
         records.append(dict(
-            FmtNumber=format_phone_no(number),
+            FmtNumber=format_phone_no(number, current_app.config["MASTER_CONFIG"]),
             Name=record[1],
             Reason=record[2],
             System_Date_Time=record[3][:19]))
@@ -582,7 +581,7 @@ def callers_blocked():
     return render_template(
         'callers_blocked.html',
         active_nav_item='blocked',
-        phone_no_format=current_app.config.get("MASTER_CONFIG").get("PHONE_DISPLAY_FORMAT"),
+        phone_no_format=current_app.config["MASTER_CONFIG"]["PHONE_DISPLAY_FORMAT"],
         blacklist=records,
         page=page,
         per_page=per_page,
@@ -673,7 +672,7 @@ def callers_permitted():
     for record in result_set:
         number = record[0]
         records.append(dict(
-            FmtNumber=format_phone_no(number),
+            FmtNumber=format_phone_no(number, current_app.config["MASTER_CONFIG"]),
             Name=record[1],
             Reason=record[2],
             System_Date_Time=record[3][:19]))  # Strip the decimal secs
@@ -690,7 +689,7 @@ def callers_permitted():
     return render_template(
         'callers_permitted.html',
         active_nav_item='permitted',
-        phone_no_format=current_app.config.get("MASTER_CONFIG").get("PHONE_DISPLAY_FORMAT"),
+        phone_no_format=current_app.config["MASTER_CONFIG"]["PHONE_DISPLAY_FORMAT"],
         whitelist=records,
         total_calls=total,
         page=page,
@@ -727,7 +726,7 @@ def callers_export(query, filename):
     for row in results:
         # Remove extra whitespace from the reason
         reason = re.sub(r"\s+", " ", row[2])
-        writer.writerow([format_phone_no(row[0]), row[1], reason])
+        writer.writerow([format_phone_no(row[0], current_app.config["MASTER_CONFIG"]), row[1], reason])
 
     # Create the byteIO object from the StringIO Object
     mem_records = io.BytesIO()
@@ -799,7 +798,7 @@ def callers_import(table, request):
 
         file = request.files['File']
         if file and file.filename != '':
-            config = current_app.config.get("MASTER_CONFIG")
+            config = current_app.config["MASTER_CONFIG"]
             with tempfile.NamedTemporaryFile(mode='w+', dir=config.data_path,
                                              prefix='PermitImport_', delete=True) as tf:
                 file.save(os.path.join(config.data_path, tf.name))
@@ -920,7 +919,7 @@ def messages():
             msg_no=row[0],
             call_no=row[1],
             name=row[2],
-            phone_no=format_phone_no(number),
+            phone_no=format_phone_no(number, current_app.config["MASTER_CONFIG"]),
             wav_file=filepath,
             msg_played=row[5],
             date=date_time.strftime('%d-%b-%y'),
@@ -957,7 +956,7 @@ def messages_delete(msg_no):
     Delete the voice message associated with call number.
     """
     print("Removing message")
-    message = Message(get_db(), current_app.config.get("MASTER_CONFIG"))
+    message = Message(get_db(), current_app.config["MASTER_CONFIG"])
     success = message.delete(msg_no)
     # Redisplay the messages page
     if success:
@@ -975,7 +974,7 @@ def messages_played():
     """
     msg_no = request.form["msg_no"]
     played = request.form["status"]
-    message = Message(get_db(), current_app.config.get("MASTER_CONFIG"))
+    message = Message(get_db(), current_app.config["MASTER_CONFIG"])
     success = message.update_played(msg_no, played)
 
     # Get the number of unread messages
@@ -995,7 +994,7 @@ def settings():
     CSS: pygmentize -S colorful -f html > pygments.css
     """
     # Get the application-wide config object
-    config = current_app.config.get("MASTER_CONFIG")
+    config = current_app.config["MASTER_CONFIG"]
 
     # Filter out the EMAIL and MQTT passwords
     saved_email_password = config['EMAIL_SERVER_PASSWORD']
@@ -1062,7 +1061,7 @@ def stringlist2dict(s):
 
 @app.route('/callers/regexlists')
 def callers_regexlists():
-    config = current_app.config.get("MASTER_CONFIG")
+    config = current_app.config["MASTER_CONFIG"]
     # Render the page
     return render_template(
         'callers_regexlists.html',
@@ -1076,7 +1075,7 @@ def callers_regexlists():
 
 @app.route('/callers/regexlists/save', methods=['POST'])
 def callers_regexlists_save():
-    config = current_app.config.get("MASTER_CONFIG")
+    config = current_app.config["MASTER_CONFIG"]
 
     # Get the data from the request and convert each list to a dict
     # Reload im-memory values (config object)
@@ -1097,44 +1096,6 @@ def callers_regexlists_save():
     return 'success'
 
 
-def format_phone_no(number):
-    '''
-    Returns a formatted the phone number based on the PHONE_DISPLAY_FORMAT configuration setting.
-    '''
-    config = current_app.config.get("MASTER_CONFIG")
-    template = config.get("PHONE_DISPLAY_FORMAT")
-    separator = config.get("PHONE_DISPLAY_SEPARATOR")
-    if separator == "" or template == "":
-        return number
-
-    # Get the template and split into reverse ordered parts for processing
-    tmpl_parts = template.split(separator)
-    tmpl_parts.reverse()
-
-    # Piece together the phone no from right to left to handle variable len numbers
-    number_len = len(number)
-    end = number_len
-    total_digits = 0
-    phone_parts = []
-    for tmpl in tmpl_parts:
-        # Assemble parts from right to left
-        start = max(0, end - len(tmpl))
-        digits = number[start: end]
-        phone_parts.insert(0, digits)
-        # Prepare for next part
-        end = start
-        total_digits += len(digits)
-        # if number is shorter than template then exit loop
-        if start == 0:
-            break
-    # If number is longer then template, then capture remaining digits
-    if total_digits < number_len:
-        # Prepend remaining digits to parts
-        phone_parts.insert(0, number[0: number_len - total_digits])
-    # Return the formatted number
-    return separator.join(phone_parts)
-
-
 def transform_number(phone_no):
     '''
     Returns the phone no stripped of all non-alphanumeric characters and makes uppercase.
@@ -1148,7 +1109,7 @@ def get_db():
     '''
     # Flask template for database connections
     if 'db' not in g:
-        master_config = current_app.config.get("MASTER_CONFIG")
+        master_config = current_app.config["MASTER_CONFIG"]
         g.db = sqlite3.connect(
             master_config.get("DB_FILE"),
             detect_types=sqlite3.PARSE_DECLTYPES

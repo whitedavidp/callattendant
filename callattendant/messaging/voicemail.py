@@ -174,7 +174,7 @@ class VoiceMail:
         # Play instructions to caller
         if msg_file:
             success, retval = self.modem.play_audio(msg_file)
-            if not success or (retval == 'off-hook'):
+            if not success or (retval in ('off-hook', 'hang-up')):
                 return False, None
 
         # Show recording in progress

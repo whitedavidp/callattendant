@@ -33,7 +33,7 @@ from datetime import datetime
 from pprint import pprint
 import csv
 
-from screening.query_db import query_db
+from common.utils import query_db
 
 class Whitelist(object):
 
@@ -149,13 +149,14 @@ class Whitelist(object):
         return True
 
     def check_number(self, number):
-        query = "SELECT Reason FROM Whitelist WHERE PhoneNo=:number"
+        query = "SELECT Name, Reason FROM Whitelist WHERE PhoneNo=:number"
         args = {"number": number}
         results = query_db(self.db, query, args, False)
         if len(results) > 0:
-            return True, results[0][0]
+            # Return tuple (Reason, Name)
+            return True, (results[0][1], results[0][0])
         else:
-            return False, ""
+            return False, None
 
     def get_number(self, number):
         query = "SELECT * FROM Whitelist WHERE PhoneNo = ?"

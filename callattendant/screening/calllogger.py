@@ -6,7 +6,7 @@
 
 from datetime import datetime
 from pprint import pprint
-from screening.query_db import query_db
+from common.utils import query_db
 
 
 class CallLogger(object):
@@ -14,12 +14,14 @@ class CallLogger(object):
     def log_caller(self, callerid, action="Screened", reason=""):
         """
         Logs the given caller into the Call Log table.
-            :param caller: a dict object containing the caller ID info
+            :param callerid: a dict object containing the caller ID info
+            :param action: the action taken on the call (default: "Screened")
+            :param reason: the reason for the action (default: "")
             :return: The CallLogID of the new record
         """
         # If the date is only 4 characters long, append the current year (for leap years)
         caller_date = callerid['DATE']
-        if (len(caller_date) == 4):
+        if len(caller_date) == 4:
             caller_date += str(datetime.now().year)
 
         # Add a row

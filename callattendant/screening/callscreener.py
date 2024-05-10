@@ -42,9 +42,9 @@ class CallScreener(object):
         number = callerid['NMBR']
         name = callerid["NAME"]
         try:
-            is_whitelisted, reason = self._whitelist.check_number(callerid['NMBR'])
+            is_whitelisted, result = self._whitelist.check_number(callerid['NMBR'])
             if is_whitelisted:
-                return True, reason
+                return True, result
             else:
                 print(">> Checking permitted patterns...")
                 patternlist = self.config.get("CALLERID_PATTERNS")["permitnames"]
@@ -53,7 +53,7 @@ class CallScreener(object):
                     if match:
                         reason = patternlist[key]
                         print(reason)
-                        return True, reason
+                        return True, (reason, None)
 
                 patternlist = self.config["CALLERID_PATTERNS"]["permitnumbers"]
                 for key in patternlist.keys():
@@ -61,8 +61,8 @@ class CallScreener(object):
                     if match:
                         reason = patternlist[key]
                         print(reason)
-                        return True, reason
-                return False, "Not found"
+                        return True, (reason, None)
+                return False, ("Not found", None)
         finally:
             sys.stdout.flush()
 
@@ -71,9 +71,9 @@ class CallScreener(object):
         number = callerid['NMBR']
         name = callerid["NAME"]
         try:
-            is_blacklisted, reason = self._blacklist.check_number(number)
+            is_blacklisted, result = self._blacklist.check_number(number)
             if is_blacklisted:
-                return True, reason
+                return True, result
             else:
                 print(">> Checking blocked patterns...")
                 patternlist = self.config["CALLERID_PATTERNS"]["blocknames"]
@@ -82,7 +82,7 @@ class CallScreener(object):
                     if match:
                         reason = patternlist[key]
                         print(reason)
-                        return True, reason
+                        return True, (reason, None)
 
                 patternlist = self.config["CALLERID_PATTERNS"]["blocknumbers"]
                 for key in patternlist.keys():
@@ -90,7 +90,7 @@ class CallScreener(object):
                     if match:
                         reason = patternlist[key]
                         print(reason)
-                        return True, reason
+                        return True, (reason, None)
 
                 if self._blockservice is not None:
                     print(">> Checking block service...")
@@ -100,10 +100,10 @@ class CallScreener(object):
                         if self.config["DEBUG"]:
                             print(">>> {}".format(reason))
                         self.blacklist_caller(callerid, reason)
-                        return True, reason
+                        return True, (reason, None)
 
                 print("Caller has been screened")
-                return False, "Not found"
+                return False, ("Not found", None)
 
         finally:
             sys.stdout.flush()

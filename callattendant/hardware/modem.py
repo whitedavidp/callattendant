@@ -428,11 +428,13 @@ class Modem(object):
                                                         '<ETX>' if x == ETX_CODE else x, modem_data))))
                         if modem_data != '':
                             if modem_data[0] == DLE_CODE:
-                                if (modem_data[1] == DCE_PHONE_OFF_HOOK) or \
-                                        (modem_data[1] == DCE_PHONE_OFF_HOOK2) or \
-                                        (modem_data[1] == DCE_PHONE_OFF_HOOK3):
+                                if modem_data[1] in (DCE_PHONE_OFF_HOOK, DCE_PHONE_OFF_HOOK2, DCE_PHONE_OFF_HOOK3):
                                     print(">> Local phone off-hook - abort playback")
                                     return_data = 'off-hook'
+                                    break
+                                if modem_data[1] in (DCE_DIAL_TONE, DCE_BUSY_TONE):
+                                    print(">> Dial/Busy Tone detected - abort playback")
+                                    return_data = 'hang-up'
                                     break
                                 if modem_data[1] == DCE_TX_BUFFER_UNDERRUN:
                                     print(">> Underrun -- ignoring")
@@ -523,9 +525,7 @@ class Modem(object):
                                 # <DLE><ETX> is in the stream
                                 print(">> <DLE><ETX> Char Recieved... Stop recording.")
                                 break
-                            if (escaped_code == DCE_PHONE_OFF_HOOK) or \
-                                    (escaped_code == DCE_PHONE_OFF_HOOK2) or \
-                                    (escaped_code == DCE_PHONE_OFF_HOOK3):
+                            if escaped_code in (DCE_PHONE_OFF_HOOK, DCE_PHONE_OFF_HOOK2, DCE_PHONE_OFF_HOOK3):
                                 # <DLE>H or <DLE>P is in the stream
                                 print(">> Local phone off hook... Stop recording")
                                 break

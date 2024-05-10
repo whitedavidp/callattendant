@@ -20,7 +20,7 @@ from werkzeug.utils import import_string
 # and screened callers through to the home phone.
 #
 default_config = {
-    "VERSION": '1.7.4',
+    "VERSION": '2.0.4',
 
     "DEBUG": False,
     "TESTING": False,
@@ -89,9 +89,11 @@ default_config = {
     "MQTT_BROKER": "localhost",
     "MQTT_PORT": 1883,
     "MQTT_TOPIC_PREFIX": "callattendant",
-    "MQTT_USERNAME": "",
-    "MQTT_PASSWORD": "",
-
+    "MQTT_USERNAME": None,
+    "MQTT_PASSWORD": None,
+    "MQTT_TIME_FORMAT": "UNIX",
+    "MQTT_CALLERID_FORMAT": "RAW",
+    "MQTT_INDICATOR_TYPE": "STATE",
 }
 
 CID_PATTERNS_DEFAULT_STRING = b"blocknames: {}\nblocknumbers: {}\n" \
@@ -245,6 +247,17 @@ class Config(dict):
         if self["STATUS_INDICATORS"] not in ("NULL", "GPIO", "MQTT"):
             print("* STATUS_INDICATORS is invalid: {}".format(self["STATUS_INDICATORS"]))
             success = False
+
+        if self["STATUS_INDICATORS"] == "MQTT":
+            if self["MQTT_CALLERID_FORMAT"] not in ("RAW", "DISPLAY"):
+                print("* MQTT_CALLERID_FORMAT is invalid: {}".format(self["MQTT_CALLERID_FORMAT"]))
+                success = False
+            if self["MQTT_TIME_FORMAT"] not in ("UNIX", "ISO"):
+                print("* MQTT_TIME_FORMAT is invalid: {}".format(self["MQTT_TIME_FORMAT"]))
+                success = False
+            if self["MQTT_INDICATOR_TYPE"] not in ("STATE", "EVENT"):
+                print("* MQTT_INDICATOR_TYPE is invalid: {}".format(self["MQTT_INDICATOR_TYPE"]))
+                success = False
 
         if not isinstance(self["BLOCKED_RINGS_BEFORE_ANSWER"], int):
             print("* BLOCKED_RINGS_BEFORE_ANSWER should be an integer: {}".format(type(self["BLOCKED_RINGS_BEFORE_ANSWER"])))

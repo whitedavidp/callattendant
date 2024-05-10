@@ -23,6 +23,42 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
 
+def format_phone_no(number, config):
+    '''
+    Returns a formatted the phone number based on the PHONE_DISPLAY_FORMAT configuration setting.
+    '''
+    template = config.get("PHONE_DISPLAY_FORMAT")
+    separator = config.get("PHONE_DISPLAY_SEPARATOR")
+    if separator == "" or template == "":
+        return number
+
+    # Get the template and split into reverse ordered parts for processing
+    tmpl_parts = template.split(separator)
+    tmpl_parts.reverse()
+
+    # Piece together the phone no from right to left to handle variable len numbers
+    number_len = len(number)
+    end = number_len
+    total_digits = 0
+    phone_parts = []
+    for tmpl in tmpl_parts:
+        # Assemble parts from right to left
+        start = max(0, end - len(tmpl))
+        digits = number[start: end]
+        phone_parts.insert(0, digits)
+        # Prepare for next part
+        end = start
+        total_digits += len(digits)
+        # if number is shorter than template then exit loop
+        if start == 0:
+            break
+    # If number is longer then template, then capture remaining digits
+    if total_digits < number_len:
+        # Prepend remaining digits to parts
+        phone_parts.insert(0, number[0: number_len - total_digits])
+    # Return the formatted number
+    return separator.join(phone_parts)
+
 
 def query_db(db, query, args=(), one=False):
     """Executes the given query on the supplied db and returns the result(s)."""
