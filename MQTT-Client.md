@@ -26,17 +26,20 @@ Callattendant MQTT message templates:
 **CallerID**: {"TimeStamp": 0, "Number": "", "Name": "", "Action": "", "Reason": ""} 
 
 - Number may be raw/internal or formatted text.
+- Caller Name will be taken from the CallerID supplied by your provider unless the Number is found in either the Permitted or Blocked callers lists. In that case, the Name will be from the DB entry found.
 
 Config file additions:
 ```
-#MQTT_TIME_FORMAT: The format of the timestamp in the MQTT message. Valid values are: ISO, UNIX
-# ISO = "YYYY-MM-DD HH:MM:SS"
-# UNIX = Seconds since epoch (Usually: 1970-01-01 00:00:00)
+# MQTT_TIME_FORMAT: The format of the timestamp in the MQTT message. Valid values are: ISO, UNIX
+#   ISO = "YYYY-MM-DD HH:MM:SS"
+#   UNIX = Seconds since epoch (Usually: 1970-01-01 00:00:00)
 MQTT_TIME_FORMAT = "UNIX"
-#MQTT_CALLERID_FORMAT: The format of the callerid in the MQTT message. Valid values are: RAW, DISPLAY
-# DISPLAY uses the PHONE_DISPLAY_FORMAT to format the number
-# RAW uses the number from the provider
+
+# MQTT_CALLERID_FORMAT: The format of the callerid in the MQTT message. Valid values are: RAW, DISPLAY
+#   DISPLAY uses the PHONE_DISPLAY_FORMAT to format the number
+#   RAW uses the number from the provider
 MQTT_CALLERID_FORMAT = "RAW"
+
 # MQTT_NOTIFICATION_TYPE: The type of notification to send. Valid values are: EVENT, STATE
 # This setting controls the RETAIN attribute of MQTT messages.
 #   EVENT: Indicator topics are not retained
