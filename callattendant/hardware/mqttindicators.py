@@ -139,9 +139,17 @@ class MQTTIndicatorClient(object):
 
         if self.username is not None:
             client.username_pw_set(self.username, self.password)
-        client.connect(self.server, self.port)
-        client.publish(self.topic_prefix + topic, message, retain=self.retain)
-        client.disconnect()
+        try:
+            client.connect(self.server, self.port)
+        except Exception as e:
+            print("MQTT connect failed: {}".format(e))
+            return
+        try:
+            client.publish(self.topic_prefix + topic, message, retain=self.retain)
+        except Exception as e:
+            print("MQTT publish failed: {}".format(e))
+        finally:
+            client.disconnect()
 
 
 class MQTTIndicator(object):

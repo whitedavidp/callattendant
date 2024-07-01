@@ -34,8 +34,12 @@ class NomoroboService(object):
     def lookup_number(self, number):
         url = "https://www.nomorobo.com/lookup/{}-{}-{}".format(number[0:3], number[3:6], number[6:])
         allowed_codes = [404]  # allow not found response
-        content = self.http_get(url, allowed_codes)
-        soup = BeautifulSoup(content, "lxml")  # lxml HTML parser: fast
+        try:
+            content = self.http_get(url, allowed_codes)
+            soup = BeautifulSoup(content, "lxml")  # lxml HTML parser: fast
+        except Exception as err:
+            print("Nomorobo number lookup failed: {}".format(err))
+            return {"spam": False, "score": 0, "reason": "Lookup failed"}
 
         score = 0  # = no spam
 
@@ -66,6 +70,7 @@ class NomoroboService(object):
 
     def http_get(self, url, allowed_codes=None):
         data = ""
+        # Handle network errors in the caller
         try:
             response = requests.get(url, timeout=5)
             if response.status_code == 200:
@@ -73,6 +78,7 @@ class NomoroboService(object):
             elif response.status_code not in allowed_codes:
                 response.raise_for_status()
         except requests.HTTPError as e:
+            # Print HTTP error code and throw exception to caller
             code = e.response.status_code
             print("HTTPError: {}".format(code))
             raise

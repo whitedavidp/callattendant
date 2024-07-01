@@ -54,7 +54,6 @@ import yaml
 from common.utils import query_db, format_phone_no
 from screening.blacklist import Blacklist
 from screening.whitelist import Whitelist
-from screening.nextcall import NextCall
 from messaging.message import Message
 
 # Create the Flask micro web-framework application
@@ -167,8 +166,15 @@ def dashboard():
             wav_file=filepath))
 
     # Get top permitted callers
-    sql = """SELECT COUNT(Number), Number, Name
-        FROM CallLog
+    sql = """SELECT COUNT(Number), Number,
+        CASE
+            WHEN b.PhoneNo is not null then b.Name
+            WHEN c.PhoneNo is not null then c.Name
+            ELSE a.Name
+        END Name
+        FROM CallLog AS a
+        LEFT JOIN Whitelist AS b ON a.Number = b.PhoneNo
+        LEFT JOIN Blacklist AS c ON a.Number = c.PhoneNo
         WHERE Action IN ('Permitted', 'Screened')
         GROUP BY Number
         ORDER BY COUNT(Number) DESC LIMIT 10"""
@@ -182,8 +188,13 @@ def dashboard():
             name=row[2]))
 
     # Get top blocked callers
-    sql = """SELECT COUNT(Number), Number, Name
-        FROM CallLog
+    sql = """SELECT COUNT(Number), Number,
+        CASE
+            WHEN b.PhoneNo is not null then b.Name
+            ELSE a.Name
+        END Name
+        FROM CallLog AS a
+        LEFT JOIN Blacklist AS b ON a.Number = b.PhoneNo
         WHERE Action = 'Blocked'
         GROUP BY Number
         ORDER BY COUNT(Number) DESC LIMIT 10"""
@@ -252,8 +263,7 @@ def dashboard():
             screened=screened_per_day.get(date_key, 0)))
 
     # Get state of permit_next_call flag
-    nextcall = NextCall(app.config['MASTER_CONFIG'])
-    permit_next = nextcall.is_next_call_permitted()
+    permit_next = app.config["NEXTCALL"].is_next_call_permitted()
 
     if not current_app.config["MASTER_CONFIG"].get("MODEM_ONLINE", True):
         flash('The modem is not online. Calls will not be screened or blocked. Check the logs and restart the CallAttendant.')
@@ -433,6 +443,8 @@ def calls_view(call_no):
 
         # Create a date object from the date time string
         date_time = datetime.strptime(row[12][:19], '%Y-%m-%d %H:%M:%S')
+        wl = row[7] == 'Y' or row[5] == 'Permitted'
+        bl = row[8] == 'Y' or row[5] == 'Blocked'
 
         caller.update(dict(
             call_no=row[0],
@@ -442,8 +454,8 @@ def calls_view(call_no):
             time=date_time.strftime('%I:%M %p'),
             action=row[5],
             reason=row[6],
-            whitelisted=row[7],
-            blacklisted=row[8],
+            whitelisted=wl,
+            blacklisted=bl,
             msg_no=row[9],
             msg_played=row[10],
             wav_file=filepath))
@@ -504,6 +516,7 @@ def callers_manage(call_no):
       a.CallLogID,
       a.Name,
       a.Number,
+      a.Action,
       CASE WHEN b.PhoneNo IS NULL THEN 'N' ELSE 'Y' END Whitelisted,
       CASE WHEN c.PhoneNo IS NULL THEN 'N' ELSE 'Y' END Blacklisted,
       CASE WHEN b.PhoneNo IS NOT NULL THEN b.Reason ELSE '' END WhitelistReason,
@@ -519,21 +532,23 @@ def callers_manage(call_no):
     if len(result_set) > 0:
         record = result_set[0]
         number = record[2]
+        wl = record[4] == 'Y' or record[3] == 'Permitted'
+        bl = record[5] == 'Y' or record[3] == 'Blocked'
         caller.update(dict(
             call_no=record[0],
             phone_no=format_phone_no(number, current_app.config["MASTER_CONFIG"]),
             name=record[1],
-            whitelisted=record[3],
-            blacklisted=record[4],
-            whitelist_reason=record[5],
-            blacklist_reason=record[6]))
+            whitelisted=wl,
+            blacklisted=bl,
+            whitelist_reason=record[6],
+            blacklist_reason=record[7]))
     else:
         caller.update(dict(
             call_no=call_no,
             phone_no='Number Not Found',
             name='',
-            whitelisted='N',
-            blacklisted='N',
+            whitelisted=False,
+            blacklisted=False,
             whitelist_reason='',
             blacklist_reason=''))
 
@@ -851,20 +866,23 @@ def callers_permitted_delete(phone_no):
     return Response(status=200)
 
 @app.route('/callers/permitnextcall')
-def Callers_permit_next_call():
-    nextcall = NextCall(app.config['MASTER_CONFIG'])
-    if nextcall.toggle_next_call_permitted():
-        return '1Next call will be permitted.'
-    else:
-        return '0Next call will be handled normally.'
+def callers_permit_next_call():
+    """
+    Query state of permit_next_call flag.
+    Supply '?toggle' argument to change state.
+    :return:
+    1 - Next call will be permitted.
+    0 - Next call will be handled normally.
+    """
+    nextcall = app.config["NEXTCALL"]
+    if request.args.get('toggle') is not None:
+        nextcall.toggle_next_call_permitted()
 
-@app.route('/callers/querynextcall')
-def Callers_query_next_call():
-    nextcall = NextCall(app.config['MASTER_CONFIG'])
     if nextcall.is_next_call_permitted():
         return '1Next call will be permitted.'
     else:
         return '0Next call will be handled normally.'
+
 
 @app.route('/messages')
 def messages():
@@ -1185,6 +1203,7 @@ def run_flask(config):
     with app.app_context():
         # Application-wide config dict
         app.config["MASTER_CONFIG"] = config
+        app.config["NEXTCALL"] = config["NEXTCALL"]
         # Override Flask settings with CallAttendant config settings
         app.config["DEBUG"] = config["DEBUG"]
         app.config["TESTING"] = config["TESTING"]

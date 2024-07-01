@@ -149,7 +149,7 @@
     });
 
     $('#permit-next-call-button').on('click', function (event) {
-      $.get(" /callers/permitnextcall", "", function(data, status) {
+      $.get(" /callers/permitnextcall?toggle", "", function(data, status) {
         // Give the user some feedback
         $('#permit-next-call-button span').text(
           "Permit Next Call" + (data.charAt(0) === "1" ? " (ON)" : "" ));

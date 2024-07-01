@@ -33,12 +33,17 @@ class ShouldIAnswer(object):
     def lookup_number(self, number):
         url = "https://www.shouldianswer.com/phone-number/{!s}".format(number)
         allowed_codes = [404]  # allow not found response
-        content = self.http_get(url, allowed_codes)
+        try:
+            content = self.http_get(url, allowed_codes)
+            soup = BeautifulSoup(content, "lxml")  # lxml HTML parser: fast
+        except Exception as err:
+            print("ShouldIAnswer number lookup failed: {}".format(err))
+            return {"spam": False, "score": 0, "reason": "Lookup failed"}
+
         # Assuming not spam
         reason = ""
         score = 0
 
-        soup = BeautifulSoup(content, "lxml")  # lxml HTML parser: fast
         # MainInfo -> ScoreContainer -> div.?
         # TODO: Further analysis of the score in "reviews' section warranted.
         # scan items in reviews section
@@ -62,6 +67,7 @@ class ShouldIAnswer(object):
     def http_get(self, url, allowed_codes=None):
         session = requests.Session()
         data = ""
+        # Handle network errors in the caller
         try:
             response = session.get(url, timeout=5)
             if response.status_code == 200:
@@ -69,6 +75,7 @@ class ShouldIAnswer(object):
             elif response.status_code not in allowed_codes:
                 response.raise_for_status()
         except requests.HTTPError as e:
+            # Print HTTP error code and throw exception to caller
             code = e.response.status_code
             print("HTTPError: {}".format(code))
             raise

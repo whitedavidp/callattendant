@@ -107,6 +107,7 @@ class CallAttendant(object):
         self.logger = CallLogger(self.db, self.config)
         self.screener = CallScreener(self.db, self.config)
         self.nextcall = NextCall(self.config)
+        self.config["NEXTCALL"] = self.nextcall
 
         # Messaging subsystem
         self.voice_mail = VoiceMail(self.db, self.config, self.modem)

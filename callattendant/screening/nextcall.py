@@ -2,9 +2,6 @@
 #
 # file: nextcall.py
 #
-#
-# Copyright 2022 Bob Alexander <callattendant@LoadAccumulator.com>
-#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
@@ -32,15 +29,18 @@ class NextCall(object):
     """Track state of the next call flag"""
     def __init__(self, config):
         self.flag_file = config.get("PERMIT_NEXT_CALL_FLAG")
+        self.state = os.path.exists(self.flag_file)
 
     def is_next_call_permitted(self):
-        return os.path.exists(self.flag_file)
+        return self.state
 
     def toggle_next_call_permitted(self):
-        if os.path.exists(self.flag_file):
+        if self.state:
             os.remove(self.flag_file)
-            return False
+            self.state = False
         else:
             with open(self.flag_file, 'w') as file:
                 file.write('Permit')
-            return True
+            self.state = True
+
+        return self.state
